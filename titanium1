@@ -1,0 +1,192 @@
+
+  require 'rubygems'
+  require 'open-uri'
+  require 'hpricot'
+  require 'net/http'
+  require 'date'
+  require 'active_support/all'
+class Myparse
+
+   def initialize()
+       file1 = File.open("newpartner_data.html", "a+")
+       row = <<END_STRING     
+           <table>
+              <tr>
+              <h2>#{Date.today.to_s}</h2>
+  		        <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+           </table>
+END_STRING
+           
+        file1.write(row)
+        file1.close	     
+     end
+def start_here
+   @url = "https://www.openerp.com/partners/directory"
+   @response = ''
+
+  begin
+    @address =  ""
+    @email = " "
+    @website = " "
+    @contact_no = " "
+    # open-uri RDoc:https://www.openerp.com/partners/directory
+    open(@url, "User-Agent" => "Ruby/#{RUBY_VERSION}",
+    "From" => "email@addr.com",
+    "Referer" => "http://www.igvita.com/blog/") { |f|
+     # Save the response body
+     @response = f.read
+    }
+
+    # OPen the Module index Page 
+    doc = Hpricot(@response)
+
+    #Get all the links to the modules page
+    elements = doc.search("//ul/li")
+    # Loop though the modules link and open individual module pages
+    elements.each do |e|
+      @module_name = e.inner_html
+     # module_url = "https://www.openerp.com"+ @module_name   
+      module_url = @module_name.split("href=")[1].split("\"")[1]  
+      #href="https://www.openerp.com/partners/directory/AF/Afghanistan"
+      begin
+         # @address = nil
+         # Open the module detail page
+         open(module_url, "User-Agent" => "Ruby/#{RUBY_VERSION}",
+		     "From" => "email@addr.com",
+         "Referer" => "http://www.igvita.com/blog/") { |f|
+	       page = f.read	
+	       module_doc = Hpricot(page) #opened a second page
+         Myparse.common_parse(module_doc)     
+       }   
+      rescue => e
+  	     print "Failed. ", $!, "\n"
+      end
+    end
+  rescue => e
+  	print "Failed. ", $!, "\n"
+  end
+
+end
+
+
+def self.common_parse(module_doc)
+      module_doc.search("//div[@class='oe_content']").each do |coudesc|   
+      @module_url_innerlink = coudesc.inner_html
+      
+      module_url_innerlink = @module_url_innerlink.split("href=")[1].split("\"")[1]    
+      #https://www.openeDrp.com/partners/directory/4654/NETLINKS
+      #p module_url_innerlink
+      begin
+         # @address = nil
+           open(module_url_innerlink, "User-Agent" => "Ruby/#{RUBY_VERSION}",
+              "From" => "email@addr.com",
+              "Referer" => "http://www.igvita.com/blog/") { |f|
+	            page = f.read	
+	            module_doc_inner_page = Hpricot(page)  #opened a third page
+              cmpname = module_doc_inner_page.search("//h2[@class='oe_slogan']")     
+              @name = cmpname.inner_text.strip.gsub(/\t|\n/,'') 
+
+              @address =""
+              module_doc_inner_page.search("//td[@class='oe_partner_address']").each do |we|  
+                 @address =  we.inner_text.strip.gsub(/\t|\n/,"") #i got Address
+              end
+            
+              @website1 = module_doc_inner_page.search("table/tr/td/a")  
+              @website = @website1.inner_html
+              # p @website
+              # p "i got this"
+               flagcontact_no = false
+               flagemail = false
+               module_doc_inner_page.search("table/tr/td").each do |de| 
+                  p de.inner_html.include? "mailto:" 
+                  if de.inner_html.include? "mailto"
+                    flagemail = true
+                    @email = de.inner_text
+                   
+                     p  de.inner_text 
+                     p @email
+                  end
+
+                  #p de.text?
+                  if de.inner_text.strip.include? "+"
+                   flagcontact_no = true
+                   @contact_no = de.inner_text 
+                   p de.inner_text.strip   if de.inner_text.strip.include? "+" 
+                  
+                   p @contact_no #here i got contact no.
+                  end
+                throw "nil argument" if de.nil?
+               end
+             
+              module_doc.search("//span[@class='oe_country']").each do |country_name|
+                @country_name = country_name.inner_text.strip.gsub(/\t|\n/,'')
+                #p @country_name #here i got company name
+              end 
+              if flagemail == false
+                @email = " "
+              next
+              end
+              if flagcontact_no == false
+                @contact_no = " "
+                next
+              end
+          } 
+
+          module_file_url = @name + @address + @website + @email + @country_name + @contact_no.to_s 
+	        file_array = module_file_url.split("/")
+	        module_file_name = file_array[file_array.size - 1] 
+ 
+          # Write the HTML for the module table
+          #read and skip if name is already exist
+	    
+	   
+file = File.open("newpartner_data.html", "r+")
+file1 = File.open("newpartner_data.html", "a+")
+@write = true
+while (line = file.gets)
+	#p line
+	#p line.include?(@name)
+      if line.include?(@name)	      
+        p "already there"
+        @write=false
+      end
+end
+file.close
+  if @write
+      		   row = <<END_STRING     
+           <table>
+              <tr>
+			        <td>#{@name}</td>
+              <td>#{@address}</td>
+              <td>#{@website}</td>
+              <td>#{@email}</td>
+              <td>#{@country_name}</td>
+              <td>#{@contact_no.to_s}</td>
+            </tr>
+           </table>
+END_STRING
+ 		            #puts row
+                file1.write(row)
+                #file.close	     
+@address =  ""
+file1.close
+  else
+   # p "itnnnnnnnnnnnnn"
+  end
+      
+                    rescue => e
+           print "Failed. ", $!, "\n"  
+         end
+        
+       #  end
+       end
+end
+end
+  mp = Myparse.new
+  mp.start_here()
